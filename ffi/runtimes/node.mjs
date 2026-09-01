@@ -1,5 +1,5 @@
 // Node.js adapter for spaceship_helm
-// Converts between Fetch API (Node 18+) and Gleam request/response types
+// Converts between Node.js http.IncomingMessage/http.ServerResponse and Gleam request/response types
 
 import { Some, None } from "../../dev/javascript/gleam_stdlib/gleam/option.mjs";
 import { Get, Post, Put, Delete, Patch, Head, Options } from "../../dev/javascript/gleam_http/gleam/http.mjs";
@@ -16,7 +16,8 @@ function gleamList(arr) {
 }
 
 export function toGleamRequest(req) {
-  const url = new URL(req.url);
+  // req is http.IncomingMessage
+  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const query = url.search ? url.search.substring(1) : null;
 
   const methodMap = {
@@ -32,14 +33,18 @@ export function toGleamRequest(req) {
   const method = methodMap[req.method] || new Get();
 
   const headers = [];
-  req.headers.forEach((v, k) => headers.push([k, v]));
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      headers.push([key, Array.isArray(value) ? value.join(", ") : value]);
+    }
+  }
 
   return {
     constructor: "Request",
     method,
     headers: gleamList(headers),
     body: new Uint8Array(0),
-    scheme: url.protocol === "https:" ? new Https() : new Http(),
+    scheme: new Http(),
     host: url.hostname,
     port: url.port ? parseInt(url.port) : null,
     path: url.pathname,
@@ -47,22 +52,29 @@ export function toGleamRequest(req) {
   };
 }
 
-export function toPlatformResponse(resp) {
-  const headers = new Headers();
+export function toPlatformResponse(resp, serverResponse) {
+  // serverResponse is http.ServerResponse
+  const headers = {};
   let h = resp.headers;
   while (h && h.head) {
-    headers.set(h.head[0], h.head[1]);
+    headers[h.head[0]] = h.head[1];
     h = h.tail;
   }
+
+  serverResponse.writeHead(resp.status, headers);
 
   let body = resp.body;
   if (body) {
     if (body.buffer instanceof Uint8Array) {
-      body = body.buffer;
+      serverResponse.end(Buffer.from(body.buffer));
     } else if (body.data instanceof Uint8Array) {
-      body = body.data;
+      serverResponse.end(Buffer.from(body.data));
+    } else if (body instanceof Uint8Array) {
+      serverResponse.end(Buffer.from(body));
+    } else {
+      serverResponse.end();
     }
+  } else {
+    serverResponse.end();
   }
-
-  return new Response(body, { status: resp.status, headers });
 }
