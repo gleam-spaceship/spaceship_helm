@@ -1,29 +1,12 @@
-// spaceship_helm adapter for Cloudflare Workers
-// These functions convert between platform and Gleam request/response types
+// Cloudflare Workers adapter for spaceship_helm
+// Converts between Fetch API and Gleam request/response types
 
-// Gleam option types - must match gleam/option.mjs exactly
-function Some(value) {
-  this[0] = value;
-}
-Some.prototype.constructor = "Some";
+import { Some, None } from "../../dev/javascript/gleam_stdlib/gleam/option.mjs";
+import { Get, Post, Put, Delete, Patch, Head, Options } from "../../dev/javascript/gleam_http/gleam/http.mjs";
 
-function None() {}
-None.prototype.constructor = "None";
-
-// Gleam HTTP methods - must match gleam/http.mjs exactly  
-class Get {}
-class Post {}
-class Put {}
-class Delete {}
-class Patch {}
-class Head {}
-class Options {}
-
-// Scheme
 class Http {}
 class Https {}
 
-// List helper
 function gleamList(arr) {
   let list = { head: undefined, tail: undefined };
   for (let i = arr.length - 1; i >= 0; i--) {
@@ -78,8 +61,6 @@ export function toPlatformResponse(resp) {
       body = body.buffer;
     } else if (body.data instanceof Uint8Array) {
       body = body.data;
-    } else if (body instanceof Uint8Array) {
-      // Already correct
     }
   }
 
