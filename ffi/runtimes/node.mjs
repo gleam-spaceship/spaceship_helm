@@ -5,7 +5,6 @@ import { Some, None } from "../../dev/javascript/gleam_stdlib/gleam/option.mjs";
 import { Get, Post, Put, Delete, Patch, Head, Options } from "../../dev/javascript/gleam_http/gleam/http.mjs";
 
 class Http {}
-class Https {}
 
 function gleamList(arr) {
   let list = { head: undefined, tail: undefined };
