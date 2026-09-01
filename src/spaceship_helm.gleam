@@ -207,7 +207,12 @@ fn handle_request(app: App, req: Request(BitArray)) -> Response(BitArray) {
       }
       let query_params = context.parse_query(query_string)
       let ctx =
-        types.Context(req: req, params: match.params, query: query_params, extra: app.extra)
+        types.Context(
+          req: req,
+          params: match.params,
+          query: query_params,
+          extra: app.extra,
+        )
 
       // Run middleware chain then handler
       run_middleware(app.middleware, ctx, match.handler)
