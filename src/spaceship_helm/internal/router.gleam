@@ -1,16 +1,41 @@
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
-import spaceship_helm/types.{type Handler, type Route}
+import spaceship_helm/types.{
+  type AsyncHandler, type AsyncRoute, type Handler, type Route,
+}
 
 pub type Match {
   Match(handler: Handler, params: Dict(String, String))
+}
+
+pub type AsyncMatch {
+  AsyncMatch(handler: AsyncHandler, params: Dict(String, String))
 }
 
 pub fn match_route(routes: List(Route), path: String) -> Result(Match, Nil) {
   let segments = split_path(path)
   routes
   |> list.find_map(fn(route) { try_match(route, segments) })
+}
+
+pub fn match_async_route(
+  routes: List(AsyncRoute),
+  path: String,
+) -> Result(AsyncMatch, Nil) {
+  let segments = split_path(path)
+  routes
+  |> list.find_map(fn(route) { try_match_async(route, segments) })
+}
+
+fn try_match_async(
+  route: AsyncRoute,
+  segments: List(String),
+) -> Result(AsyncMatch, Nil) {
+  case match_segments(route.path, segments, dict.new()) {
+    Ok(params) -> Ok(AsyncMatch(handler: route.handler, params: params))
+    Error(Nil) -> Error(Nil)
+  }
 }
 
 fn try_match(route: Route, segments: List(String)) -> Result(Match, Nil) {

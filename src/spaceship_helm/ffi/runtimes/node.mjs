@@ -1,8 +1,9 @@
 // Node.js adapter for spaceship_helm
 // Converts between Node.js http.IncomingMessage/http.ServerResponse and Gleam request/response types
 
-import { Some, None } from "../../dev/javascript/gleam_stdlib/gleam/option.mjs";
-import { Get, Post, Put, Delete, Patch, Head, Options } from "../../dev/javascript/gleam_http/gleam/http.mjs";
+import { Some, None } from "../../../../gleam_stdlib/gleam/option.mjs";
+import { Get, Post, Put, Delete, Patch, Head, Options } from "../../../../gleam_http/gleam/http.mjs";
+import { BitArray } from "../../../gleam.mjs";
 
 class Http {}
 
@@ -14,9 +15,12 @@ function gleamList(arr) {
   return list;
 }
 
-export function toGleamRequest(req) {
+export async function toGleamRequest(req) {
   // req is http.IncomingMessage
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const body = new Uint8Array(Buffer.concat(chunks));
   const query = url.search ? url.search.substring(1) : null;
 
   const methodMap = {
@@ -42,8 +46,8 @@ export function toGleamRequest(req) {
     constructor: "Request",
     method,
     headers: gleamList(headers),
-    body: new Uint8Array(0),
-    scheme: new Http(),
+    body: new BitArray(body),
+    scheme: req.socket?.encrypted ? new Https() : new Http(),
     host: url.hostname,
     port: url.port ? parseInt(url.port) : null,
     path: url.pathname,
@@ -64,7 +68,9 @@ export function toPlatformResponse(resp, serverResponse) {
 
   let body = resp.body;
   if (body) {
-    if (body.buffer instanceof Uint8Array) {
+    if (body.rawBuffer instanceof Uint8Array) {
+      body = body.rawBuffer;
+    } else if (body.buffer instanceof Uint8Array) {
       serverResponse.end(Buffer.from(body.buffer));
     } else if (body.data instanceof Uint8Array) {
       serverResponse.end(Buffer.from(body.data));

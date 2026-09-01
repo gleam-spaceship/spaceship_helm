@@ -5,6 +5,7 @@ import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
+import gleam/javascript/promise.{type Promise}
 
 pub type Context {
   Context(
@@ -21,6 +22,21 @@ pub type Handler =
 pub type Middleware =
   fn(Context, fn(Context) -> Response(BitArray)) -> Response(BitArray)
 
+pub type AsyncHandler =
+  fn(Context) -> Promise(Response(BitArray))
+
+pub type AsyncMiddleware =
+  fn(Context, fn(Context) -> Promise(Response(BitArray))) ->
+    Promise(Response(BitArray))
+
 pub type Route {
   Route(path: List(String), handler: Handler, middleware: List(Middleware))
+}
+
+pub type AsyncRoute {
+  AsyncRoute(
+    path: List(String),
+    handler: AsyncHandler,
+    middleware: List(AsyncMiddleware),
+  )
 }

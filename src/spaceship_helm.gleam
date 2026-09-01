@@ -5,6 +5,7 @@ import gleam/http.{
 }
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
+import gleam/javascript/promise.{type Promise}
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -12,7 +13,8 @@ import gleam/string
 import spaceship_helm/context
 import spaceship_helm/internal/router
 import spaceship_helm/types.{
-  type Context, type Handler, type Middleware, type Route,
+  type AsyncHandler, type AsyncMiddleware, type AsyncRoute, type Context,
+  type Handler, type Middleware, type Route, AsyncRoute as AsyncRouteConstructor,
   Route as RouteConstructor,
 }
 
@@ -28,6 +30,16 @@ pub type App {
     custom: Dict(String, List(Route)),
     not_found: Handler,
     middleware: List(Middleware),
+    async_get: List(AsyncRoute),
+    async_post: List(AsyncRoute),
+    async_put: List(AsyncRoute),
+    async_delete: List(AsyncRoute),
+    async_patch: List(AsyncRoute),
+    async_head: List(AsyncRoute),
+    async_options: List(AsyncRoute),
+    async_custom: Dict(String, List(AsyncRoute)),
+    async_not_found: AsyncHandler,
+    async_middleware: List(AsyncMiddleware),
     extra: Dict(String, Dynamic),
   )
 }
@@ -48,6 +60,21 @@ pub fn new() -> App {
       |> response.set_body(<<"Not Found":utf8>>)
     },
     middleware: [],
+    async_get: [],
+    async_post: [],
+    async_put: [],
+    async_delete: [],
+    async_patch: [],
+    async_head: [],
+    async_options: [],
+    async_custom: dict.new(),
+    async_not_found: fn(_ctx) {
+      promise.resolve(
+        response.new(404)
+        |> response.set_body(<<"Not Found":utf8>>),
+      )
+    },
+    async_middleware: [],
     extra: dict.new(),
   )
 }
@@ -127,7 +154,85 @@ pub fn to_fetch(app: App) -> fn(Request(BitArray)) -> Response(BitArray) {
   fn(req) { handle_request(app, req) }
 }
 
+/// Register an asynchronous GET route.
+pub fn async_get(app: App, path: String, handler: AsyncHandler) -> App {
+  add_async_route(app, "GET", path, handler)
+}
+
+/// Register an asynchronous POST route.
+pub fn async_post(app: App, path: String, handler: AsyncHandler) -> App {
+  add_async_route(app, "POST", path, handler)
+}
+
+/// Register an asynchronous PUT route.
+pub fn async_put(app: App, path: String, handler: AsyncHandler) -> App {
+  add_async_route(app, "PUT", path, handler)
+}
+
+/// Register an asynchronous DELETE route.
+pub fn async_delete(app: App, path: String, handler: AsyncHandler) -> App {
+  add_async_route(app, "DELETE", path, handler)
+}
+
+/// Register an asynchronous route with a custom method.
+pub fn async_on(
+  app: App,
+  method: String,
+  path: String,
+  handler: AsyncHandler,
+) -> App {
+  add_async_route(app, method, path, handler)
+}
+
+/// Add asynchronous middleware.
+pub fn async_middleware(app: App, mw: AsyncMiddleware) -> App {
+  App(..app, async_middleware: [mw, ..app.async_middleware])
+}
+
+/// Set the asynchronous not-found handler.
+pub fn async_not_found(app: App, handler: AsyncHandler) -> App {
+  App(..app, async_not_found: handler)
+}
+
+/// Convert an app with asynchronous routes to a Fetch-style handler.
+pub fn to_fetch_async(
+  app: App,
+) -> fn(Request(BitArray)) -> Promise(Response(BitArray)) {
+  fn(req) { handle_async_request(app, req) }
+}
+
 // --- Internal ---
+
+fn add_async_route(
+  app: App,
+  method: String,
+  path: String,
+  handler: AsyncHandler,
+) -> App {
+  let route =
+    AsyncRouteConstructor(
+      path: parse_path(path),
+      handler: handler,
+      middleware: app.async_middleware,
+    )
+
+  case method {
+    "GET" -> App(..app, async_get: [route, ..app.async_get])
+    "POST" -> App(..app, async_post: [route, ..app.async_post])
+    "PUT" -> App(..app, async_put: [route, ..app.async_put])
+    "DELETE" -> App(..app, async_delete: [route, ..app.async_delete])
+    "PATCH" -> App(..app, async_patch: [route, ..app.async_patch])
+    "HEAD" -> App(..app, async_head: [route, ..app.async_head])
+    "OPTIONS" -> App(..app, async_options: [route, ..app.async_options])
+    _ -> {
+      let existing = dict.get(app.async_custom, method) |> result.unwrap([])
+      App(
+        ..app,
+        async_custom: dict.insert(app.async_custom, method, [route, ..existing]),
+      )
+    }
+  }
+}
 
 fn add_route(app: App, method: String, path: String, handler: Handler) -> App {
   let path_segments = parse_path(path)
@@ -224,6 +329,68 @@ fn handle_request(app: App, req: Request(BitArray)) -> Response(BitArray) {
         query: dict.new(),
         extra: app.extra,
       ))
+  }
+}
+
+fn handle_async_request(
+  app: App,
+  req: Request(BitArray),
+) -> Promise(Response(BitArray)) {
+  let method = method_to_string(req.method)
+  let path = case string.split(req.path, "?") {
+    [path, ..] -> path
+    [] -> req.path
+  }
+  let routes = get_async_routes(app, method)
+  case router.match_async_route(routes, path) {
+    Ok(match) -> {
+      let query_string = case req.query {
+        Some(q) -> q
+        None -> ""
+      }
+      let ctx =
+        types.Context(
+          req: req,
+          params: match.params,
+          query: context.parse_query(query_string),
+          extra: app.extra,
+        )
+      run_async_middleware(app.async_middleware, ctx, match.handler)
+    }
+    Error(_) ->
+      app.async_not_found(types.Context(
+        req: req,
+        params: dict.new(),
+        query: dict.new(),
+        extra: app.extra,
+      ))
+  }
+}
+
+fn get_async_routes(app: App, method: String) -> List(AsyncRoute) {
+  case method {
+    "GET" -> app.async_get
+    "POST" -> app.async_post
+    "PUT" -> app.async_put
+    "DELETE" -> app.async_delete
+    "PATCH" -> app.async_patch
+    "HEAD" -> app.async_head
+    "OPTIONS" -> app.async_options
+    _ -> dict.get(app.async_custom, method) |> result.unwrap([])
+  }
+}
+
+fn run_async_middleware(
+  middlewares: List(AsyncMiddleware),
+  ctx: Context,
+  handler: AsyncHandler,
+) -> Promise(Response(BitArray)) {
+  case middlewares {
+    [] -> handler(ctx)
+    [mw, ..rest] -> {
+      let next = fn(ctx) { run_async_middleware(rest, ctx, handler) }
+      mw(ctx, next)
+    }
   }
 }
 
