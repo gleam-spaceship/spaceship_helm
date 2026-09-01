@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
 import gleam/http.{
   Connect, Delete, Get, Head, Options, Other, Patch, Post, Put, Trace,
 }
@@ -27,6 +28,7 @@ pub type App {
     custom: Dict(String, List(Route)),
     not_found: Handler,
     middleware: List(Middleware),
+    extra: Dict(String, Dynamic),
   )
 }
 
@@ -46,7 +48,13 @@ pub fn new() -> App {
       |> response.set_body(<<"Not Found":utf8>>)
     },
     middleware: [],
+    extra: dict.new(),
   )
+}
+
+/// Add extra data to app context (e.g., env for Cloudflare Workers)
+pub fn with(app: App, key: String, value: Dynamic) -> App {
+  App(..app, extra: dict.insert(app.extra, key, value))
 }
 
 /// Add global middleware
@@ -199,7 +207,7 @@ fn handle_request(app: App, req: Request(BitArray)) -> Response(BitArray) {
       }
       let query_params = context.parse_query(query_string)
       let ctx =
-        types.Context(req: req, params: match.params, query: query_params)
+        types.Context(req: req, params: match.params, query: query_params, extra: app.extra)
 
       // Run middleware chain then handler
       run_middleware(app.middleware, ctx, match.handler)
@@ -209,6 +217,7 @@ fn handle_request(app: App, req: Request(BitArray)) -> Response(BitArray) {
         req: req,
         params: dict.new(),
         query: dict.new(),
+        extra: app.extra,
       ))
   }
 }

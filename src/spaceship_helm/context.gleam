@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
 import gleam/list
 import gleam/option.{type Option}
 import gleam/result
@@ -8,6 +9,11 @@ import spaceship_helm/types.{type Context}
 /// Get a path parameter by name
 pub fn param(ctx: Context, name: String) -> String {
   dict.get(ctx.params, name) |> result.unwrap("")
+}
+
+/// Get extra data by key (e.g., "env" for Cloudflare Workers)
+pub fn extra(ctx: Context, name: String) -> Dynamic {
+  dict.get(ctx.extra, name) |> result.unwrap(dynamic.nil())
 }
 
 /// Get a query parameter by name, returns None if not present
