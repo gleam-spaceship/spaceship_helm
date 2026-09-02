@@ -39,6 +39,9 @@ pub fn main() {
 | Route Groups | Namespace routes with prefixes |
 | Response Helpers | `text`, `json`, `html`, `redirect` |
 | Built-in Middleware | CORS, logger |
+| Static Files | Serve public assets with MIME detection |
+| Sessions | Cookie-based session management |
+| Cookies | Read/write HTTP cookies |
 | Environment Variables | Cross-platform env access (Node, Cloudflare, Deno, Bun) |
 
 ## API
@@ -118,6 +121,79 @@ let app =
   spaceship_helm.new()
   |> spaceship_helm.middleware(middleware.cors())
   |> spaceship_helm.middleware(middleware.logger(io.println))
+```
+
+### Static Files
+
+Serve static files from a directory:
+
+```gleam
+import spaceship_helm/static
+
+let app =
+  spaceship_helm.new()
+  |> spaceship_helm.get("/api/data", api_handler)
+  |> spaceship_helm.middleware(static.directory("public"))
+```
+
+With custom cache duration:
+
+```gleam
+|> spaceship_helm.middleware(static.directory_with_cache("public", 604800))
+```
+
+Supported MIME types: HTML, CSS, JavaScript, JSON, images, fonts, and more.
+
+### Sessions
+
+Cookie-based session management:
+
+```gleam
+import spaceship_helm/session
+
+// Create a session store
+let store = sessions.new_store()
+
+// Setup middleware
+let app =
+  spaceship_helm.new()
+  |> spaceship_helm.get("/", home_handler)
+  |> spaceship_helm.use(sessions.cookie("session_id", "secret-key", store))
+
+// In handler - read session
+use session <- sessions.get(ctx)
+let username = sessions.get_value(session, "username")
+
+// In handler - write session
+let session = sessions.set_value(session, "username", "alice")
+sessions.commit(response, session, store)
+```
+
+### Cookies
+
+Read and write HTTP cookies:
+
+```gleam
+import spaceship_helm/cookie
+
+// Read cookie from request
+let session_id = cookie.get(ctx.req, "session_id")
+
+// Set cookie on response
+let resp = cookie.set(response, "session_id", "abc123", 3600)
+
+// Delete cookie
+let resp = cookie.delete(response, "session_id")
+
+// Set with custom options
+let options = cookie.CookieOptions(
+  path: "/api",
+  max_age: 3600,
+  http_only: True,
+  secure: True,
+  same_site: "Strict",
+)
+let resp = cookie.set_with_options(response, "token", "xyz", options)
 ```
 
 ### Response Helpers
