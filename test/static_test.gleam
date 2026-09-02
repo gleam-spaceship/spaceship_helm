@@ -13,6 +13,6 @@ pub fn static_directory_returns_middleware_test() {
 
 pub fn static_directory_with_cache_returns_middleware_test() {
   // Verify that directory_with_cache() returns a middleware function
-  let _mw = static.directory_with_cache("public", 86400)
+  let _mw = static.directory_with_cache("public", 86_400)
   Nil
 }
