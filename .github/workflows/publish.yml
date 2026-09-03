@@ -17,10 +17,12 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Set up Gleam
-        uses: gleam-lang/setup-gleam@v1
+      - name: Set up Erlang and Gleam
+        uses: erlef/setup-beam@v1
         with:
-          gleam-version: "latest"
+          otp-version: "29"
+          gleam-version: "1.18.1"
+          rebar3-version: "3"
 
       - name: Publish to Hex
         run: gleam publish -y
