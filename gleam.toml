@@ -1,5 +1,5 @@
 name = "spaceship_helm"
-version = "0.1.0"
+version = "0.1.1"
 target = "javascript"
 
 description = "Hono-like HTTP router for Gleam with middleware, sessions, and static files"
@@ -13,7 +13,7 @@ gleam_http = ">= 4.3.0 and < 5.0.0"
 gleam_stdlib = ">= 1.0.5 and < 2.0.0"
 gleam_javascript = ">= 1.0.1 and < 2.0.0"
 filepath = ">= 1.1.0 and < 2.0.0"
-simplifile = ">= 1.7.0 and < 2.0.0"
+simplifile = ">= 2.7.0 and < 3.0.0"
 
 [dev_dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
